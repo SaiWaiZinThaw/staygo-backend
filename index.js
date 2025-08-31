@@ -1,11 +1,10 @@
-import mongoose from "mongoose";
 import express from "express";
 import connectDB from "./config/mongodb.js";
 import cors from "cors";
 import dotenv from "dotenv";
 import { authRouter } from "./router/authRouter.js";
+import { tripRouter } from "./router/tripRouter.js";
 import cookieParser from "cookie-parser";
-import { checkPrivateImg } from "./telegramBot.js";
 dotenv.config({ path: "./.env" });
 
 const app = express();
@@ -25,5 +24,6 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api", authRouter);
+app.use("/api/trips", tripRouter);
 
 app.listen(port, (port) => console.log("Backend server running on", port));

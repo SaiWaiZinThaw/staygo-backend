@@ -33,9 +33,13 @@ export const login = async (req, res) => {
     const existingUser = await userModel.findOne({ telegramId });
 
     if (existingUser) {
-      const token = jwt.sign({ id: existingUser._id }, process.env.JWT_SECRET, {
-        expiresIn: "7d",
-      });
+      const token = jwt.sign(
+        { id: existingUser.telegramId },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "7d",
+        }
+      );
       res.cookie("token", token, {
         secure: process.env.NODE_ENV === "production",
         sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
@@ -56,7 +60,7 @@ export const login = async (req, res) => {
     });
     await user.save();
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ id: user.telegramId }, process.env.JWT_SECRET, {
       expiresIn: "7d",
     });
     res.cookie("token", token, {

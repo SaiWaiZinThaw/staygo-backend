@@ -1,5 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import axios from "axios";
+import { tripModel } from "./models/tripModel.js";
+import userModel from "./models/userModel.js";
 const token = "8302880429:AAH6yKKUm269dnAFTuL8qja1BcWFY_62mRQ"; // Replace with your bot token
 const DEFAULT_AVATAR_URL = "https://i.imgur.com/eSiF3Sx.jpeg"; // Your default avatar
 
@@ -59,6 +61,116 @@ bot.onText(/\/avatar/, async (msg) => {
   }
 });
 
+bot.onText(/\/mytrips/, async (msg) => {
+  const telegramId = msg.from.id;
+  const trips = await tripModel.find({
+    $or: [{ creator: telegramId }, { participants: telegramId }],
+  });
+
+  if (trips.length === 0) {
+    return bot.sendMessage(msg.chat.id, "📭 No trips found.");
+  }
+
+  trips.forEach((t) => {
+    bot.sendMessage(
+      msg.chat.id,
+      `🎯 ${t.title} (${t.startDate} → ${t.endDate})`
+    );
+    if (t.photo) {
+      bot.sendPhoto(msg.chat.id, t.photo);
+    }
+  });
+});
+
+const tripCreationState = {};
+
+bot.onText(/\/newtrip/, (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+
+  // Start trip creation flow
+  tripCreationState[chatId] = {
+    step: "waiting_for_title",
+    creator: userId,
+    participants: [userId],
+  };
+
+  bot.sendMessage(chatId, "🔤 Enter the trip name:");
+});
+
+// Handle all text messages during trip creation
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+
+  // Skip if not in trip creation flow
+  if (!tripCreationState[chatId]) return;
+
+  const state = tripCreationState[chatId];
+
+  try {
+    if (state.step === "waiting_for_title") {
+      state.title = text;
+      state.step = "waiting_for_destination";
+      bot.sendMessage(
+        chatId,
+        "🌍 Enter destinations (comma-separated): Paris, Berlin, Rome"
+      );
+    } else if (state.step === "waiting_for_destination") {
+      const destinations = text
+        .split(",")
+        .map((d) => d.trim())
+        .filter((d) => d);
+      if (destinations.length === 0) {
+        return bot.sendMessage(
+          chatId,
+          "❌ Please enter at least one destination."
+        );
+      }
+      state.destination = destinations;
+      state.step = "waiting_for_start_date";
+      bot.sendMessage(chatId, "📅 Enter start date (YYYY-MM-DD):");
+    } else if (state.step === "waiting_for_start_date") {
+      const date = new Date(text);
+      if (isNaN(date.getTime())) {
+        return bot.sendMessage(chatId, "❌ Invalid date. Use YYYY-MM-DD");
+      }
+      state.startDate = text;
+      state.step = "waiting_for_end_date";
+      bot.sendMessage(chatId, "🔚 Enter end date (YYYY-MM-DD)");
+    } else if (state.step === "waiting_for_end_date") {
+      const date = new Date(text);
+      if (isNaN(date.getTime())) {
+        return bot.sendMessage(chatId, "❌ Invalid date. Use YYYY-MM-DD");
+      }
+      state.endDate = text;
+
+      // ✅ All data collected — create trip
+      await createTripInDatabase(state);
+      delete tripCreationState[chatId]; // End state
+
+      bot.sendMessage(chatId, `✅ Trip "${state.title}" created successfully!`);
+    }
+  } catch (err) {
+    console.error("Trip creation error:", err);
+    bot.sendMessage(chatId, "❌ Something went wrong. Please try again.");
+    delete tripCreationState[chatId];
+  }
+});
+
+bot.onText(/\/format/, (msg) => {
+  const chatId = msg.chat.id;
+
+  bot.sendMessage(msg.chat.id, "<b>Format</b> /n hi", {
+    parse_mode: "HTML",
+  });
+});
+
+// Dummy function — replace with your API call
+async function createTripInDatabase(tripData) {
+  const trip = new tripModel(tripData);
+  await trip.save();
+}
 export const checkPrivateImg = async (id) => {
   if (!bot) {
     return true;

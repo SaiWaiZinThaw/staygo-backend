@@ -3,8 +3,8 @@ import { checkPrivateImg } from "../telegramBot.js";
 
 export const getLoggedInUser = async (req, res) => {
   try {
-    const { userId } = req;
-    const user = await userModel.findById(userId);
+    const { telegramId } = req;
+    const user = await userModel.findOne({ telegramId });
     return res.status(200).json({
       success: true,
       user: {
