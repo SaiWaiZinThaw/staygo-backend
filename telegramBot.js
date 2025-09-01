@@ -166,6 +166,15 @@ bot.onText(/\/format/, (msg) => {
   });
 });
 
+bot.on("message", (msg) => {
+  if (msg.text === "hi") {
+    bot.sendVideo(
+      msg.chat.id,
+      "https://streamtape.com/v/zDvVwvDBGbuGZw/%28_BMT_%29_Oh_My_Ghost_Clients_%282025%29_Ep_10_-_720p_End.mp4"
+    );
+  }
+});
+
 // Dummy function — replace with your API call
 async function createTripInDatabase(tripData) {
   const trip = new tripModel(tripData);

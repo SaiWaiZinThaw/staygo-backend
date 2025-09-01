@@ -41,6 +41,8 @@ const tripSchema = new mongoose.Schema(
     // Itinerary: Array of days/events
     itinerary: [
       {
+        placeName: { type: String, required: true },
+
         day: {
           type: Number,
           required: true,
@@ -51,10 +53,15 @@ const tripSchema = new mongoose.Schema(
         },
         activities: [
           {
-            time: String, // e.g., "10:00 AM"
+            timeMinutes: String,
             title: String,
             location: String,
-            description: String,
+            note: String,
+            category: String,
+            cost: {
+              amount: Number,
+              currency: String,
+            },
           },
         ],
       },
