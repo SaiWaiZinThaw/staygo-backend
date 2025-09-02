@@ -1,15 +1,25 @@
 import mongoose from "mongoose";
 
-const categorySchema = new mongoose.Schema({
+const placeCategorySchema = new mongoose.Schema({
   name: String,
 });
 
-export const categoryModel =
-  mongoose.models.category || new mongoose.model("category", categorySchema);
+export const placeCategoryModel =
+  mongoose.models.placeCategory ||
+  new mongoose.model("placeCategory", placeCategorySchema);
 
-const statusSchema = new mongoose.shcema({
+const expenseCategorySchema = new mongoose.Schema({
   name: String,
 });
 
-export const statusModel =
-  mongoose.models.status || new mongoose.model("status", statusSchema);
+export const expenseCategoryModel =
+  mongoose.models.expenseCategory ||
+  new mongoose.model("expenseCategory", expenseCategorySchema);
+
+const tripStatusSchema = new mongoose.shcema({
+  name: String,
+});
+
+export const tripStatusModel =
+  mongoose.models.tripStatus ||
+  new mongoose.model("tripStatus", tripStatusSchema);

@@ -1,4 +1,10 @@
 import mongoose from "mongoose";
+import { buildItineraryFromPlaces } from "../middlewares/tripUpdater.js";
+
+if (mongoose.models.trip) {
+  delete mongoose.models.trip;
+}
+
 const tripSchema = new mongoose.Schema(
   {
     creator: {
@@ -6,7 +12,6 @@ const tripSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-
     participants: [
       {
         type: String,
@@ -18,17 +23,16 @@ const tripSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    photo: { type: String, required: false },
+    photo: { type: String },
 
     destination: {
-      type: [String], // Array of destination names
+      type: [String],
       required: true,
     },
     progress: {
       type: Number,
       default: 0,
     },
-    // Date range
     startDate: {
       type: Date,
       required: true,
@@ -38,88 +42,83 @@ const tripSchema = new mongoose.Schema(
       required: true,
     },
 
-    // Itinerary: Array of days/events
+    // Itinerary
     itinerary: [
       {
-        placeName: { type: String, required: true },
-
-        day: {
-          type: Number,
-          required: true,
-        },
-        date: {
-          type: Date,
-          required: true,
-        },
-        activities: [
+        date: { type: Date, required: true },
+        places: [
           {
-            timeMinutes: String,
-            title: String,
-            location: String,
-            note: String,
-            category: String,
+            name: { type: String, required: true },
+            address: { type: String },
+            category: { type: String },
+            visited: { type: Boolean, default: false },
+            date: { type: Date, default: Date.now },
+            startTime: { type: String },
+            endTime: { type: String },
             cost: {
-              amount: Number,
-              currency: String,
+              amount: { type: Number, default: 0 },
+              currency: { type: String, default: "MMK" },
             },
+            link: { type: String },
+            notes: { type: String },
           },
         ],
       },
     ],
 
-    // List of places to visit
+    // Places
     places: [
-      {
+      new mongoose.Schema({
         name: { type: String, required: true },
         address: { type: String },
-        category: { type: String }, // e.g., "Museum", "Restaurant"
+        category: { type: String },
         visited: { type: Boolean, default: false },
+        date: { type: Date, default: Date.now },
+        startTime: { type: String },
+        endTime: { type: String },
+        cost: {
+          amount: { type: Number, default: 0 },
+          currency: { type: String, default: "MMK" },
+        },
+        link: { type: String },
         notes: { type: String },
-      },
+      }),
     ],
 
-    // Budget details
     budget: {
       total: { type: Number, default: 0 },
       currency: { type: String, default: "MMK" },
       expenses: [
         {
           name: { type: String, required: true },
-          amount: { type: Number, required: true },
           category: { type: String, required: true },
+          amount: { type: Number, required: true },
           currency: { type: String, default: "MMK" },
-          category: { type: String },
           date: { type: Date, default: Date.now },
-          place: { type: String },
-          paidBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-          },
+          notes: { type: String },
         },
       ],
     },
 
-    // Bookings (flights, hotels, etc.)
     bookings: [
       {
         type: {
           type: String,
-          enum: ["flight", "hotel", "event", "rental"],
+          enum: ["flight", "hotel", "event", "rental", "dinning"],
           required: true,
         },
         title: { type: String, required: true },
-        provider: { type: String },
-        bookingRef: { type: String },
         startDate: { type: Date },
         endDate: { type: Date },
-        cost: { type: Number },
-        currency: { type: String },
+        cost: {
+          amount: { type: Number, default: 0 },
+          currency: { type: String, default: "MMK" },
+        },
         details: { type: String },
         confirmed: { type: Boolean, default: true },
       },
     ],
 
-    // Notes (collaborative notes)
     notes: [
       {
         text: { type: String, required: true },
@@ -127,37 +126,26 @@ const tripSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
         },
-        createdAt: {
-          type: Date,
-          default: Date.now,
-        },
+        createdAt: { type: Date, default: Date.now },
       },
     ],
 
-    // Telegram integration: link to a Telegram group/chat
-    telegramChatId: {
-      type: String,
-      required: false, // optional
-    },
-    telegramMessageId: {
-      type: String,
-      required: false,
-    },
+    telegramChatId: { type: String },
+    telegramMessageId: { type: String },
 
-    // Timestamps
-    createdAt: {
-      type: Date,
-      default: Date.now,
-    },
-    updatedAt: {
-      type: Date,
-      default: Date.now,
-    },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
   },
-  {
-    timestamps: true, // automatically manages createdAt and updatedAt
-  }
+  { timestamps: true }
 );
+
+// 🔹 Hook: keep itinerary in sync with places
+tripSchema.pre("save", function (next) {
+  if (this.isModified("places")) {
+    this.itinerary = buildItineraryFromPlaces(this.places);
+  }
+  next();
+});
 
 export const tripModel =
   mongoose.models.trip || new mongoose.model("trip", tripSchema);

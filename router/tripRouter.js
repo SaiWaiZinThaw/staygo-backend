@@ -4,6 +4,7 @@ import {
   createTrip,
   getATrip,
   getAllTrips,
+  updateTrip,
 } from "../controller/tripController.js";
 import upload from "../middlewares/multer.js";
 
@@ -12,3 +13,4 @@ export const tripRouter = express.Router();
 tripRouter.post("/create", upload.single("photo"), userAuth, createTrip);
 tripRouter.get("/", userAuth, getAllTrips);
 tripRouter.get("/:tripId", userAuth, getATrip);
+tripRouter.patch("/:tripId", upload.none(), userAuth, updateTrip);

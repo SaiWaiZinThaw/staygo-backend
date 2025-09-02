@@ -1,6 +1,7 @@
 import cloudinary from "../config/cloudinary.js";
 import { tripModel } from "../models/tripModel.js";
 import userModel from "../models/userModel.js";
+
 export const createTrip = async (req, res) => {
   const { title, destination, startDate, endDate } = req.body;
   const { telegramId } = req;
@@ -108,6 +109,115 @@ export const createTrip = async (req, res) => {
     console.error("Create trip error:", error);
 
     // Handle common Mongoose errors
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        success: false,
+        message: "Validation error: " + error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const updateTrip = async (req, res) => {
+  const { tripId } = req.params;
+  const { telegramId } = req;
+  const { places } = req.body;
+  console.log(places);
+  // Authentication
+  if (!telegramId) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized: User not authenticated",
+    });
+  }
+
+  if (!tripId) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields: tripId",
+    });
+  }
+
+  let placesArray;
+
+  try {
+    placesArray = JSON.parse(places);
+  } catch (err) {
+    placesArray = places.split(",").map((d) => d.trim());
+  }
+
+  if (!Array.isArray(placesArray) || placesArray.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Places must be a non-empty array of strings",
+    });
+  }
+
+  if (
+    !placesArray.every(
+      (p) =>
+        p &&
+        typeof p === "object" &&
+        p.name &&
+        typeof p.name === "string" &&
+        p.name.trim() !== ""
+    )
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Each place must be an object with a non-empty 'name' string",
+    });
+  }
+
+  try {
+    const trip = await tripModel.findById(tripId);
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found",
+      });
+    }
+
+    // Authorization: Only creator or participant can update?
+    // Adjust based on your business logic
+    if (
+      trip.creator !== telegramId &&
+      !trip.participants.includes(telegramId)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden: You don't have permission to edit this trip",
+      });
+    }
+
+    // Convert strings into proper place objects
+    // If input is an array of place objects, keep them as is
+    const newPlaces = placesArray.map((p) => ({
+      ...p,
+      date: p.date ? new Date(p.date) : new Date(),
+    }));
+
+    // ✅ Correct way: Update `places` array by pushing new entries
+    trip.places.push(...newPlaces);
+    trip.updatedAt = Date.now(); // Ensure timestamp updates
+
+    // Save the updated document
+    const updatedTrip = await trip.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Places added successfully",
+      trip: updatedTrip,
+    });
+  } catch (error) {
+    console.error("Update trip error:", error);
+
     if (error.name === "ValidationError") {
       return res.status(400).json({
         success: false,
