@@ -71,7 +71,11 @@ const tripSchema = new mongoose.Schema(
       new mongoose.Schema({
         name: { type: String, required: true },
         address: { type: String },
-        category: { type: String },
+        category: {
+          type: String,
+          required: true,
+          enums: ["Food", "Stay", "Sights", "Transport", "Other"],
+        },
         visited: { type: Boolean, default: false },
         date: { type: Date, default: Date.now },
         startTime: { type: String },
@@ -87,7 +91,8 @@ const tripSchema = new mongoose.Schema(
 
     budget: {
       total: { type: Number, default: 0 },
-      currency: { type: String, default: "MMK" },
+      amount: { type: Number, default: 0 },
+      budgetCurrency: { type: String, default: "MMK" },
       expenses: [
         {
           name: { type: String, required: true },
@@ -104,7 +109,7 @@ const tripSchema = new mongoose.Schema(
       {
         type: {
           type: String,
-          enum: ["flight", "hotel", "event", "rental", "dinning"],
+          enum: ["Flight", "Hotel", "Event", "Rental", "Dinning"],
           required: true,
         },
         title: { type: String, required: true },
@@ -139,11 +144,31 @@ const tripSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// 🔹 Hook: keep itinerary in sync with places
 tripSchema.pre("save", function (next) {
   if (this.isModified("places")) {
+    // Build itinerary from places
     this.itinerary = buildItineraryFromPlaces(this.places);
+
+    // Build budget from places
+    this.budget.expenses = [
+      ...this.budget.expenses, // keep existing manual expenses
+      ...this.places.map((place) => ({
+        name: place.name || this.title,
+        category: place.category || "Other",
+        amount: place.cost?.amount || 0,
+        currency: place.cost?.currency || "MMK",
+        date: place.date || new Date(),
+        notes: place.notes || "",
+      })),
+    ];
+
+    // Auto-update total
+    this.budget.total = this.budget.expenses.reduce(
+      (sum, exp) => sum + (exp.amount || 0),
+      0
+    );
   }
+
   next();
 });
 

@@ -3,7 +3,7 @@ import { tripModel } from "../models/tripModel.js";
 import userModel from "../models/userModel.js";
 
 export const createTrip = async (req, res) => {
-  const { title, destination, startDate, endDate } = req.body;
+  const { title, destination, startDate, endDate, amount, currency } = req.body;
   const { telegramId } = req;
   const user = await userModel.findOne({ telegramId });
 
@@ -13,7 +13,14 @@ export const createTrip = async (req, res) => {
       message: "Unauthorized: User not authenticated",
     });
   }
-  if (!title || !destination || !startDate || !endDate) {
+  if (
+    !title ||
+    !destination ||
+    !startDate ||
+    !endDate ||
+    !amount ||
+    !currency
+  ) {
     res
       .status(400)
       .json({ success: false, message: "Missing required fields" });
@@ -97,6 +104,10 @@ export const createTrip = async (req, res) => {
       startDate: start,
       endDate: end,
       photo: imageUrl,
+      budget: {
+        budget: budget,
+        currency: currency,
+      },
     });
     await trip.save();
 
@@ -126,16 +137,26 @@ export const createTrip = async (req, res) => {
 export const updateTrip = async (req, res) => {
   const { tripId } = req.params;
   const { telegramId } = req;
-  const { places } = req.body;
-  console.log(places);
-  // Authentication
+
+  if (req.body === undefined) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields",
+    });
+  }
+
+  const {
+    places,
+    expenses,
+    amount: newBudget,
+    currency: newCurrency,
+  } = req.body;
   if (!telegramId) {
     return res.status(401).json({
       success: false,
       message: "Unauthorized: User not authenticated",
     });
   }
-
   if (!tripId) {
     return res.status(400).json({
       success: false,
@@ -143,35 +164,36 @@ export const updateTrip = async (req, res) => {
     });
   }
 
-  let placesArray;
-
-  try {
-    placesArray = JSON.parse(places);
-  } catch (err) {
-    placesArray = places.split(",").map((d) => d.trim());
+  let placesArray = [];
+  if (places) {
+    if (typeof places === "string") {
+      try {
+        placesArray = JSON.parse(places);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid places format: must be JSON or array",
+        });
+      }
+    } else if (Array.isArray(places)) {
+      placesArray = places;
+    }
   }
 
-  if (!Array.isArray(placesArray) || placesArray.length === 0) {
-    return res.status(400).json({
-      success: false,
-      message: "Places must be a non-empty array of strings",
-    });
-  }
-
-  if (
-    !placesArray.every(
-      (p) =>
-        p &&
-        typeof p === "object" &&
-        p.name &&
-        typeof p.name === "string" &&
-        p.name.trim() !== ""
-    )
-  ) {
-    return res.status(400).json({
-      success: false,
-      message: "Each place must be an object with a non-empty 'name' string",
-    });
+  let expensesArray = [];
+  if (expenses) {
+    if (typeof expenses === "string") {
+      try {
+        expensesArray = JSON.parse(expenses);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid expenses format: must be JSON or array",
+        });
+      }
+    } else if (Array.isArray(expenses)) {
+      expensesArray = expenses;
+    }
   }
 
   try {
@@ -185,7 +207,6 @@ export const updateTrip = async (req, res) => {
     }
 
     // Authorization: Only creator or participant can update?
-    // Adjust based on your business logic
     if (
       trip.creator !== telegramId &&
       !trip.participants.includes(telegramId)
@@ -203,16 +224,24 @@ export const updateTrip = async (req, res) => {
       date: p.date ? new Date(p.date) : new Date(),
     }));
 
-    // ✅ Correct way: Update `places` array by pushing new entries
+    const newExpenses = expensesArray.map((p) => ({
+      ...p,
+      date: p.date ? new Date(p.date) : new Date(),
+    }));
+
     trip.places.push(...newPlaces);
+    if (newExpenses.length > 0) {
+      trip.budget.expenses.push(...newExpenses);
+    }
+    if (newBudget !== undefined) trip.budget.amount = newBudget;
+    if (newCurrency !== undefined) trip.budget.budgetCurrency = newCurrency;
     trip.updatedAt = Date.now(); // Ensure timestamp updates
 
-    // Save the updated document
     const updatedTrip = await trip.save();
 
     return res.status(200).json({
       success: true,
-      message: "Places added successfully",
+      message: "Trip updated successfully",
       trip: updatedTrip,
     });
   } catch (error) {
